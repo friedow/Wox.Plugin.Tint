@@ -4,39 +4,37 @@ import requests
 import webbrowser
 from wox import Wox,WoxAPI
 import json
-import os
+import os.path
 
 class Tint(Wox):
 
-    def __init__(self) {
-        self.dataFilePath = 'data.json'
+    def initializeLibrary(self):
+        self.libraryPath = 'data.json'
+        self.library = {}
+        self.library['palettes'] = []
 
-        if not os.path.exists(dataFilePath):
-            self.data = {}
-            self.data['palettes'] = []
-            self.saveData()
-        
-        else:    
-            with open(dataFilePath, 'r') as dataFile:
-                self.data = json.load(dataFile)
-    }
+        if os.path.isfile(self.libraryPath):
+            self.openLibrary()
+        else:
+            self.createLibrary()
 
-    def saveData():
-        with open('data.txt', 'w+') as dataFile:
-            json.dump(self.data, dataFile)
+    def createLibrary(self):
+        self.library = {}
+        self.library['palettes'] = []
+        self.saveLibrary()
+    
+    def openLibrary(self):
+        with open(self.libraryPath, 'r') as libraryFile:
+            self.library = json.load(libraryFile)
+
+    def saveLibrary(self):
+        with open(self.libraryPath, 'w+') as libraryFile:
+            json.dump(self.library, libraryFile)
 
     def query(self, key):
+        self.initializeLibrary()
+
         results = []
-        results.append({
-            "Title": "'" + key + "'",
-            "SubTitle": "Key Debugger",
-            "IcoPath": "Images/app.png",
-            "JsonRPCAction": {
-                "method":"navigate",
-                "parameters": [""],
-                "dontHideAfterAction": True
-            }
-        })
 
         if key.startswith("add"):
             if key == "add":
@@ -65,6 +63,22 @@ class Tint(Wox):
             })
             return results
         
+        elif key.startswith("palette"):
+            # TODO: list colors and add new ones
+            pass
+        
+        for palette in self.library['palettes']:
+            results.append({
+                "Title": palette['name'],
+                "SubTitle": "",
+                "IcoPath": "Images/app.png",
+                "JsonRPCAction": {
+                    "method":"navigate",
+                    "parameters": ["tint palette '" + palette['name'] + "'"],
+                    "dontHideAfterAction": True
+                }
+            })
+
         results.append({
             "Title": "Create color palette",
             "SubTitle": "Adds a new color palette to the library.",
@@ -72,18 +86,23 @@ class Tint(Wox):
             "JsonRPCAction": {
                 "method":"navigate",
                 "parameters": ["tint add "],
-                "dontHideAfterAction":True
+                "dontHideAfterAction": True
             }
         })
-
         return results
     
     def navigate(self, command):
         WoxAPI.change_query(command)
 
     def createPalette(self, name):
-        # fsd
-        pass
+        self.initializeLibrary()
+
+        self.library['palettes'].append({
+            "name": name,
+            "colors": []
+        })
+        self.saveLibrary()
+        WoxAPI.change_query("tint palette '" + name + "'")
 
     def openUrl(self, url):
         webbrowser.open(url)
