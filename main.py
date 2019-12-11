@@ -5,6 +5,9 @@ import webbrowser
 from wox import Wox,WoxAPI
 import json
 import os.path
+import re
+import sys
+import subprocess
 
 class Tint(Wox):
 
@@ -36,21 +39,23 @@ class Tint(Wox):
 
         results = []
 
-        if key.startswith("add"):
-            if key == "add":
-                results.append({
-                    "Title": "Name your new palette",
-                    "SubTitle": "Just start typing to name your new color palette!",
-                    "IcoPath": "Images/app.png",
-                    "JsonRPCAction": {
-                        "method":"navigate",
-                        "parameters": ["tint add "],
-                        "dontHideAfterAction": True
-                    }
-                })
-                return results
-            
-            paletteName = key.lstrip("add ")
+        addingPaletteWithoutName = re.search('^add$', key)
+        if addingPaletteWithoutName:
+            results.append({
+                "Title": "Name your new palette",
+                "SubTitle": "Just start typing to name your new color palette!",
+                "IcoPath": "Images/app.png",
+                "JsonRPCAction": {
+                    "method":"navigate",
+                    "parameters": ["tint add "],
+                    "dontHideAfterAction": True
+                }
+            })
+            return results
+        
+        addingPaletteWithName = re.search('^add (?P<paletteName>[a-zA-Z0-9]+)$', key)
+        if addingPaletteWithName:
+            paletteName = addingPaletteWithName.group('paletteName')
             results.append({
                 "Title": "Create palette: " + paletteName,
                 "SubTitle": "Creates a new color palette.",
@@ -63,33 +68,103 @@ class Tint(Wox):
             })
             return results
         
-        elif key.startswith("palette"):
-            # TODO: list colors and add new ones
-            pass
-        
-        for palette in self.library['palettes']:
+        elif key.startswith("add "):
             results.append({
-                "Title": palette['name'],
-                "SubTitle": "",
+                "Title": "Invalid Palette Name",
+                "SubTitle": "Please use only A-Z and 0-9 for palette names.",
                 "IcoPath": "Images/app.png",
                 "JsonRPCAction": {
-                    "method":"navigate",
-                    "parameters": ["tint palette '" + palette['name'] + "'"],
+                    "method":"",
+                    "parameters": "",
                     "dontHideAfterAction": True
                 }
             })
+            return results
+        
+        browsingPalettes = re.search('^palette (?P<paletteName>[a-zA-Z0-9]+)$', key)
+        if browsingPalettes:
+            paletteName = browsingPalettes.group('paletteName')
+            palette = self.findPalette(paletteName)
+            if palette:
+                for color in palette['colors']:
+                    results.append({
+                        "Title": color['hex'],
+                        "SubTitle": "",
+                        "IcoPath": "Images/app.png",
+                        "JsonRPCAction": {
+                            "method":"copyToClipboard",
+                            "parameters": [color['hex']],
+                            "dontHideAfterAction": False
+                        }
+                    })
+                results.append({
+                    "Title": "Add color",
+                    "SubTitle": "Adds a new color to the palette.",
+                    "IcoPath": "Images/app.png",
+                    "JsonRPCAction": {
+                        "method":"navigate",
+                        "parameters": ["tint palette " + paletteName + " add "],
+                        "dontHideAfterAction": True
+                    }
+                })
+                return results
 
-        results.append({
-            "Title": "Create color palette",
-            "SubTitle": "Adds a new color palette to the library.",
-            "IcoPath": "Images/app.png",
-            "JsonRPCAction": {
-                "method":"navigate",
-                "parameters": ["tint add "],
-                "dontHideAfterAction": True
-            }
-        })
-        return results
+
+        addingColor = re.search('^palette (?P<paletteName>[a-zA-Z0-9]+) add #?(?P<hexColor>[abcdefABCDEF0-9]{3,6})$', key)
+        if addingColor:
+            paletteName = addingColor.group('paletteName')
+            hexColor = '#' + addingColor.group('hexColor')
+            results.append({
+                "Title": "Add color: " + hexColor,
+                "SubTitle": "Adds a new color to the selected palette.",
+                "IcoPath": "Images/app.png",
+                "JsonRPCAction": {
+                    "method":"addColor",
+                    "parameters": [paletteName, hexColor],
+                    "dontHideAfterAction": True
+                }
+            })
+            return results
+        
+        elif re.search('^palette (?P<paletteName>[a-zA-Z0-9]+) add .+$', key):
+            results.append({
+                "Title": "Invalid Color Format",
+                "SubTitle": "Please provide the color in hex format.",
+                "IcoPath": "Images/app.png",
+                "JsonRPCAction": {
+                    "method":"",
+                    "parameters": "",
+                    "dontHideAfterAction": True
+                }
+            })
+            return results
+            
+        searchingPalette = re.search('^(palette )?(?P<paletteName>[a-zA-Z0-9]*)$', key)
+        if searchingPalette:
+            paletteName = searchingPalette.group('paletteName')
+            palettes = self.findPalettes(paletteName)
+            for palette in palettes:
+                results.append({
+                    "Title": palette['name'],
+                    "SubTitle": "",
+                    "IcoPath": "Images/app.png",
+                    "JsonRPCAction": {
+                        "method":"navigate",
+                        "parameters": ["tint palette " + palette['name']],
+                        "dontHideAfterAction": True
+                    }
+                })
+            results.append({
+                "Title": "Create color palette",
+                "SubTitle": "Adds a new color palette to the library.",
+                "IcoPath": "Images/app.png",
+                "JsonRPCAction": {
+                    "method":"navigate",
+                    "parameters": ["tint add "],
+                    "dontHideAfterAction": True
+                }
+            })
+            return results
     
     def navigate(self, command):
         WoxAPI.change_query(command)
@@ -102,7 +177,29 @@ class Tint(Wox):
             "colors": []
         })
         self.saveLibrary()
-        WoxAPI.change_query("tint palette '" + name + "'")
+        WoxAPI.change_query("tint palette " + name)
+
+    def findPalette(self, name):
+        palettes = [palette for palette in self.library['palettes'] if palette['name'] == name]
+        if len(palettes):
+            return palettes[0]
+
+    def findPalettes(self, name):
+        return [palette for palette in self.library['palettes'] if palette['name'].lower().startswith(name.lower())]
+
+    def addColor(self, paletteName, hexColor):
+        self.initializeLibrary()
+
+        palette = self.findPalette(paletteName)
+        if palette:
+            palette['colors'].append({
+                'hex': hexColor
+            })
+            self.saveLibrary()
+        WoxAPI.change_query("tint palette " + paletteName)
+
+    def copyToClipboard(self, text):
+        subprocess.Popen(['clip'], stdin=subprocess.PIPE).communicate(str.encode(text))
 
     def openUrl(self, url):
         webbrowser.open(url)
