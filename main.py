@@ -8,6 +8,8 @@ import os.path
 import re
 import sys
 import subprocess
+from PIL import Image, ImageDraw
+from colour import Color
 
 class Tint(Wox):
 
@@ -33,6 +35,18 @@ class Tint(Wox):
     def saveLibrary(self):
         with open(self.libraryPath, 'w+') as libraryFile:
             json.dump(self.library, libraryFile)
+
+    def context_menu(self, result):
+        return [{
+            "Title": "Name your new palette",
+            "SubTitle": "Just start typing to name your new color palette!",
+            "IcoPath": "Images/app.png",
+            "JsonRPCAction": {
+                "method":"",
+                "parameters": "",
+                "dontHideAfterAction": True
+            }
+        }]
 
     def query(self, key):
         self.initializeLibrary()
@@ -87,10 +101,13 @@ class Tint(Wox):
             palette = self.findPalette(paletteName)
             if palette:
                 for color in palette['colors']:
+                    colorObj = Color(color['hex'])
+                    previewImage = Image.new('RGB', (100, 100), (int(colorObj.red * 255), int(colorObj.green * 255), int(colorObj.blue * 255)))
+                    previewImage.save('colors/' + color['hex'] + '.jpg')
                     results.append({
                         "Title": color['hex'],
                         "SubTitle": "",
-                        "IcoPath": "Images/app.png",
+                        "IcoPath": 'colors/' + color['hex'] + '.jpg',
                         "JsonRPCAction": {
                             "method":"copyToClipboard",
                             "parameters": [color['hex']],
@@ -110,14 +127,17 @@ class Tint(Wox):
                 return results
 
 
-        addingColor = re.search('^palette (?P<paletteName>[a-zA-Z0-9]+) add #?(?P<hexColor>[abcdefABCDEF0-9]{3,6})$', key)
+        addingColor = re.search('^palette (?P<paletteName>[a-zA-Z0-9]+) add #?(?P<hexColor>([abcdefABCDEF0-9]{3}|[abcdefABCDEF0-9]{6}))$', key)
         if addingColor:
             paletteName = addingColor.group('paletteName')
             hexColor = '#' + addingColor.group('hexColor')
+            color = Color(hexColor)
+            previewImage = Image.new('RGB', (100, 100), (int(color.red * 255), int(color.green * 255), int(color.blue * 255)))
+            previewImage.save('colors/' + hexColor + '.jpg')
             results.append({
                 "Title": "Add color: " + hexColor,
                 "SubTitle": "Adds a new color to the selected palette.",
-                "IcoPath": "Images/app.png",
+                "IcoPath": 'colors/' + hexColor + '.jpg',
                 "JsonRPCAction": {
                     "method":"addColor",
                     "parameters": [paletteName, hexColor],
