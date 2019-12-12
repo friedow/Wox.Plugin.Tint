@@ -101,13 +101,11 @@ class Tint(Wox):
             palette = self.findPalette(paletteName)
             if palette:
                 for color in palette['colors']:
-                    colorObj = Color(color['hex'])
-                    previewImage = Image.new('RGB', (100, 100), (int(colorObj.red * 255), int(colorObj.green * 255), int(colorObj.blue * 255)))
-                    previewImage.save('colors/' + color['hex'] + '.jpg')
+                    previewImagePath = self.createColorPreviewImage(hexColor)
                     results.append({
                         "Title": color['hex'],
                         "SubTitle": "",
-                        "IcoPath": 'colors/' + color['hex'] + '.jpg',
+                        "IcoPath": previewImagePath,
                         "JsonRPCAction": {
                             "method":"copyToClipboard",
                             "parameters": [color['hex']],
@@ -131,13 +129,11 @@ class Tint(Wox):
         if addingColor:
             paletteName = addingColor.group('paletteName')
             hexColor = '#' + addingColor.group('hexColor')
-            color = Color(hexColor)
-            previewImage = Image.new('RGB', (100, 100), (int(color.red * 255), int(color.green * 255), int(color.blue * 255)))
-            previewImage.save('colors/' + hexColor + '.jpg')
+            previewImagePath = self.createColorPreviewImage(hexColor)
             results.append({
                 "Title": "Add color: " + hexColor,
                 "SubTitle": "Adds a new color to the selected palette.",
-                "IcoPath": 'colors/' + hexColor + '.jpg',
+                "IcoPath": previewImagePath,
                 "JsonRPCAction": {
                     "method":"addColor",
                     "parameters": [paletteName, hexColor],
@@ -217,6 +213,13 @@ class Tint(Wox):
             })
             self.saveLibrary()
         WoxAPI.change_query("tint palette " + paletteName)
+
+    def createColorPreviewImage(self, color):
+        previewColor = Color(color)
+        previewImage = Image.new('RGB', (100, 100), (int(previewColor.red * 255), int(previewColor.green * 255), int(previewColor.blue * 255)))
+        previewImagePath = 'colors/' + color + '.jpg'
+        previewImage.save(previewImagePath)
+        return previewImagePath
 
     def copyToClipboard(self, text):
         subprocess.Popen(['clip'], stdin=subprocess.PIPE).communicate(str.encode(text))
