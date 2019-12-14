@@ -4,12 +4,15 @@ import requests
 import webbrowser
 from wox import Wox,WoxAPI
 import json
-import os.path
+import os
 import re
 import sys
 import subprocess
 from PIL import Image, ImageDraw
 from colour import Color
+import string
+import random
+import shutil
 
 class Tint(Wox):
 
@@ -101,7 +104,7 @@ class Tint(Wox):
             palette = self.findPalette(paletteName)
             if palette:
                 for color in palette['colors']:
-                    previewImagePath = self.createColorPreviewImage(hexColor)
+                    previewImagePath = self.createColorPreviewImage(color['hex'])
                     results.append({
                         "Title": color['hex'],
                         "SubTitle": "",
@@ -157,13 +160,15 @@ class Tint(Wox):
             
         searchingPalette = re.search('^(palette )?(?P<paletteName>[a-zA-Z0-9]*)$', key)
         if searchingPalette:
+            self.clearPalettePreviews()
             paletteName = searchingPalette.group('paletteName')
             palettes = self.findPalettes(paletteName)
             for palette in palettes:
+                previewImagePath = self.createPalettePreviewImage(palette)
                 results.append({
                     "Title": palette['name'],
                     "SubTitle": "",
-                    "IcoPath": "Images/app.png",
+                    "IcoPath": previewImagePath,
                     "JsonRPCAction": {
                         "method":"navigate",
                         "parameters": ["tint palette " + palette['name']],
@@ -214,12 +219,39 @@ class Tint(Wox):
             self.saveLibrary()
         WoxAPI.change_query("tint palette " + paletteName)
 
-    def createColorPreviewImage(self, color):
-        previewColor = Color(color)
-        previewImage = Image.new('RGB', (100, 100), (int(previewColor.red * 255), int(previewColor.green * 255), int(previewColor.blue * 255)))
-        previewImagePath = 'colors/' + color + '.jpg'
+    def createColorPreviewImage(self, hexColor):
+        previewImage = Image.new('RGB', (100, 100), self.colourToIntRgb(hexColor))
+        previewImagePath = 'colors/' + hexColor + '.jpg'
         previewImage.save(previewImagePath)
         return previewImagePath
+
+    def createPalettePreviewImage(self, palette):
+        numPaletteColors = len(palette['colors'])
+        previewImageWidth = 100
+        previewImageHeight = 100
+        singleColorWidth = previewImageWidth / numPaletteColors
+        previewImage = Image.new('RGB', (100, 100), (255, 255, 255))
+        previewImageDraw = ImageDraw.Draw(previewImage)
+        for i, color in enumerate(palette['colors']):
+            previewImageDraw.rectangle(((singleColorWidth * i, 0), (singleColorWidth * (i + 1), previewImageHeight)), fill=self.colourToIntRgb(color['hex']))
+        
+        previewImagePath = 'palettes/' + self.randString() + '.jpg'
+        previewImage.save(previewImagePath)
+        return previewImagePath
+
+    def clearPalettePreviews(self):
+        palettesDirectory = 'palettes'
+        if os.path.exists(palettesDirectory):
+            shutil.rmtree(palettesDirectory)
+        os.mkdir(palettesDirectory)
+
+    def colourToIntRgb(self, hexColor):
+        color = Color(hexColor)
+        return (int(color.red * 255), int(color.green * 255), int(color.blue * 255))
+
+    def randString(self, len=30):
+        chars = string.ascii_letters + string.digits
+        return ''.join(random.choice(chars) for i in range(len))
 
     def copyToClipboard(self, text):
         subprocess.Popen(['clip'], stdin=subprocess.PIPE).communicate(str.encode(text))
