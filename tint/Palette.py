@@ -1,3 +1,4 @@
+from Color import Color
 
 class Palette(object):
 
@@ -8,10 +9,9 @@ class Palette(object):
     def addColor(self, color):
         self.colors.append(color)
     
-    def filterColors(self, seachString):
+    def findColors(self, seachString):
         return [color for color in self.colors if seachString in color.hex]
-    
-    def findColor(self)
 
     def removeColor(self, color):
-
+        if color in self.colors:
+            self.colors.remove(color)
